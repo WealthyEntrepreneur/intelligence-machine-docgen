@@ -28,7 +28,11 @@ async function processJob(jobId) {
 
   const doc = renderDocx(job, brandKit);
   const docx = await docxBuffer(doc);
-  const pdf = await convertAsync(docx, '.pdf', undefined);
+
+  // PDF is best-effort: if LibreOffice is missing/fails, deliver docx-only and flag it (don't hard-fail).
+  let pdf = null;
+  try { pdf = await convertAsync(docx, '.pdf', undefined); }
+  catch (e) { console.error('[docgen] pdf conversion failed, delivering docx-only:', e.message); }
 
   const result = verify({ docxBuffer: docx, pdfBuffer: pdf, job });
 
@@ -37,7 +41,7 @@ async function processJob(jobId) {
   const base = `${job.tenant_id}/deliverables/${stamp}-${safe}`;
   const docxPath = await uploadFile(`${base}.docx`, docx,
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-  const pdfPath = await uploadFile(`${base}.pdf`, pdf, 'application/pdf');
+  const pdfPath = pdf ? await uploadFile(`${base}.pdf`, pdf, 'application/pdf') : null;
 
   await updateJob(jobId, {
     status: result.passed ? 'needs_review' : 'failed',
