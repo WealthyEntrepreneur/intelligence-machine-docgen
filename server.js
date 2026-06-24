@@ -14,6 +14,7 @@ const convertAsync = promisify(libre.convert);
 const { supabase, getJob, getBrandKit, updateJob, uploadFile } = require('./lib/store');
 const { renderDocx, docxBuffer } = require('./lib/render');
 const { verify } = require('./lib/verify');
+const { stripeCheckout, stripeWebhook } = require('./lib/billing');
 
 const PORT = process.env.PORT || 8088;
 const TOKEN = process.env.DOCGEN_TOKEN || '';
@@ -49,15 +50,23 @@ async function processJob(jobId) {
 }
 
 const app = express();
+
+// Stripe webhook needs the raw body for signature verification — register before express.json().
+app.post('/billing/webhook', express.raw({ type: '*/*' }), stripeWebhook);
+
 app.use(express.json({ limit: '4mb' }));
 
 app.use((req, res, next) => {
-  if (req.path === '/health') return next();
+  // Public/self-authenticating routes skip the shared-token gate.
+  if (req.path === '/health' || req.path.startsWith('/billing/')) return next();
   if (!TOKEN || (req.headers.authorization || '') !== `Bearer ${TOKEN}`) return res.status(401).json({ error: 'unauthorized' });
   next();
 });
 
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'im-docgen' }));
+
+// Checkout authenticates the caller's Supabase JWT inside the handler.
+app.post('/billing/checkout', stripeCheckout);
 
 app.post('/generate', async (req, res) => {
   const jobId = req.body && req.body.job_id;
