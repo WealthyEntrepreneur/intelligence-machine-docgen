@@ -55,6 +55,16 @@ async function processJob(jobId) {
 
 const app = express();
 
+// CORS so the browser app (different origin) can call /billing/checkout. Preflight (OPTIONS)
+// must be answered before the token gate, since it carries no Authorization header.
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  next();
+});
+
 // Stripe webhook needs the raw body for signature verification — register before express.json().
 app.post('/billing/webhook', express.raw({ type: '*/*' }), stripeWebhook);
 
