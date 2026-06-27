@@ -14,7 +14,7 @@ const convertAsync = promisify(libre.convert);
 const { supabase, getJob, getBrandKit, updateJob, uploadFile } = require('./lib/store');
 const { renderDocx, docxBuffer } = require('./lib/render');
 const { verify } = require('./lib/verify');
-const { stripeCheckout, stripeWebhook } = require('./lib/billing');
+const { stripeCheckout, stripeSubscribe, stripeWebhook } = require('./lib/billing');
 
 const PORT = process.env.PORT || 8088;
 const TOKEN = process.env.DOCGEN_TOKEN || '';
@@ -79,8 +79,9 @@ app.use((req, res, next) => {
 
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'im-docgen' }));
 
-// Checkout authenticates the caller's Supabase JWT inside the handler.
+// Checkout/subscribe authenticate the caller's Supabase JWT inside the handler.
 app.post('/billing/checkout', stripeCheckout);
+app.post('/billing/subscribe', stripeSubscribe);
 
 app.post('/generate', async (req, res) => {
   const jobId = req.body && req.body.job_id;
