@@ -26,6 +26,16 @@ async function processJob(jobId) {
   await updateJob(jobId, { status: 'rendering', error: null });
   const brandKit = await getBrandKit(job.tenant_id);
 
+  // Spec §6: client work never defaults to the WE brand. No brand kit -> hold for review.
+  if (!brandKit) {
+    await updateJob(jobId, {
+      status: 'needs_review',
+      error: "Brand kit required — add this client's colors & logo in Deliverables, then Retry.",
+      checks: [{ name: 'brand_kit', ok: false, detail: 'no brand kit for this client' }],
+    });
+    return { status: 'needs_review', reason: 'brand_kit_missing' };
+  }
+
   const doc = renderDocx(job, brandKit);
   const docx = await docxBuffer(doc);
 
