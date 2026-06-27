@@ -44,7 +44,7 @@ async function processJob(jobId) {
   try { pdf = await convertAsync(docx, '.pdf', undefined); }
   catch (e) { console.error('[docgen] pdf conversion failed, delivering docx-only:', e.message); }
 
-  const result = verify({ docxBuffer: docx, pdfBuffer: pdf, job });
+  const result = await verify({ docxBuffer: docx, pdfBuffer: pdf, job });
 
   const stamp = Date.now();
   const safe = String(job.title || 'deliverable').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 60);
