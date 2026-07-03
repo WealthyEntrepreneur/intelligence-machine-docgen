@@ -26,14 +26,15 @@ async function processJob(jobId) {
   await updateJob(jobId, { status: 'rendering', error: null });
   const brandKit = await getBrandKit(job.tenant_id);
 
-  // Spec §6: client work never defaults to the WE brand. No brand kit -> hold for review.
+  // Spec §6: client work never defaults to the WE brand. No brand kit -> nothing was rendered,
+  // so this is a failure (enables Retry), not needs_review (which implies a file exists to approve).
   if (!brandKit) {
     await updateJob(jobId, {
-      status: 'needs_review',
+      status: 'failed',
       error: "Brand kit required — add this client's colors & logo in Deliverables, then Retry.",
       checks: [{ name: 'brand_kit', ok: false, detail: 'no brand kit for this client' }],
     });
-    return { status: 'needs_review', reason: 'brand_kit_missing' };
+    return { status: 'failed', reason: 'brand_kit_missing' };
   }
 
   const doc = renderDocx(job, brandKit);
