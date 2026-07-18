@@ -11,7 +11,7 @@ const { promisify } = require('util');
 const libre = require('libreoffice-convert');
 const convertAsync = promisify(libre.convert);
 
-const { supabase, getJob, getBrandKit, updateJob, uploadFile } = require('./lib/store');
+const { supabase, getJob, getBrandKit, updateJob, uploadFile, downloadLogo } = require('./lib/store');
 const { renderDocx, docxBuffer } = require('./lib/render');
 const { verify } = require('./lib/verify');
 const { stripeCheckout, stripeSubscribe, stripeOverageCheckout, stripeWebhook } = require('./lib/billing');
@@ -37,7 +37,9 @@ async function processJob(jobId) {
     return { status: 'failed', reason: 'brand_kit_missing' };
   }
 
-  const doc = renderDocx(job, brandKit);
+  // Fetch the client's logo (storage path or URL) so it can be embedded on the cover.
+  const logoBuf = brandKit.logo_url ? await downloadLogo(brandKit.logo_url) : null;
+  const doc = renderDocx(job, brandKit, logoBuf);
   const docx = await docxBuffer(doc);
 
   // PDF is best-effort: if LibreOffice is missing/fails, deliver docx-only and flag it (don't hard-fail).
