@@ -15,6 +15,8 @@ const { supabase, getJob, getBrandKit, updateJob, uploadFile, downloadLogo } = r
 const { renderDocx, docxBuffer } = require('./lib/render');
 const { verify } = require('./lib/verify');
 const { stripeCheckout, stripeSubscribe, stripeOverageCheckout, stripeOverageInvoice, stripeWebhook } = require('./lib/billing');
+const { xlsxBuffer } = require('./lib/xlsx');
+const { pptxBuffer } = require('./lib/pptx');
 
 const PORT = process.env.PORT || 8088;
 const TOKEN = process.env.DOCGEN_TOKEN || '';
@@ -56,14 +58,33 @@ async function processJob(jobId) {
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
   const pdfPath = pdf ? await uploadFile(`${base}.pdf`, pdf, 'application/pdf') : null;
 
+  // R-40: xlsx auto-adds whenever the blocks contain tabular data; pptx only for the Max
+  // tier (job.input.generate_pptx, set by the execution workflow). Both are best-effort —
+  // a renderer failure here must never block delivery of the core docx/pdf.
+  let xlsxPath = null;
+  try {
+    const xlsx = await xlsxBuffer(job, brandKit);
+    if (xlsx) xlsxPath = await uploadFile(`${base}.xlsx`, xlsx, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  } catch (e) { console.error('[docgen] xlsx generation failed, continuing without it:', e.message); }
+
+  let pptxPath = null;
+  try {
+    if (job.input && job.input.generate_pptx) {
+      const pptx = await pptxBuffer(job, brandKit);
+      pptxPath = await uploadFile(`${base}.pptx`, pptx, 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+    }
+  } catch (e) { console.error('[docgen] pptx generation failed, continuing without it:', e.message); }
+
   await updateJob(jobId, {
     status: result.passed ? 'needs_review' : 'failed',
     checks: result.checks,
     docx_path: docxPath,
     pdf_path: pdfPath,
+    xlsx_path: xlsxPath,
+    pptx_path: pptxPath,
     error: result.passed ? null : 'render-verify failed',
   });
-  return { status: result.passed ? 'needs_review' : 'failed', checks: result.checks, docx_path: docxPath, pdf_path: pdfPath };
+  return { status: result.passed ? 'needs_review' : 'failed', checks: result.checks, docx_path: docxPath, pdf_path: pdfPath, xlsx_path: xlsxPath, pptx_path: pptxPath };
 }
 
 const app = express();
