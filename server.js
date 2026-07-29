@@ -14,7 +14,7 @@ const convertAsync = promisify(libre.convert);
 const { supabase, getJob, getBrandKit, updateJob, uploadFile, downloadLogo } = require('./lib/store');
 const { renderDocx, docxBuffer } = require('./lib/render');
 const { verify } = require('./lib/verify');
-const { stripeCheckout, stripeSubscribe, stripeOverageCheckout, stripeWebhook } = require('./lib/billing');
+const { stripeCheckout, stripeSubscribe, stripeOverageCheckout, stripeOverageInvoice, stripeWebhook } = require('./lib/billing');
 
 const PORT = process.env.PORT || 8088;
 const TOKEN = process.env.DOCGEN_TOKEN || '';
@@ -96,6 +96,9 @@ app.get('/health', (_req, res) => res.json({ ok: true, service: 'im-docgen' }));
 app.post('/billing/checkout', stripeCheckout);
 app.post('/billing/subscribe', stripeSubscribe);
 app.post('/billing/overage-checkout', stripeOverageCheckout);
+// R-68: server-to-server only (called by Postgres via pg_net, never the browser) — the
+// unguessable run_id plus the pending-status idempotency check in the handler is the gate.
+app.post('/billing/overage-invoice', stripeOverageInvoice);
 
 app.post('/generate', async (req, res) => {
   const jobId = req.body && req.body.job_id;
